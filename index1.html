@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Clicker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Exo+2:wght@300;400;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: #0a0e1a;
+      color: #e8eaf6;
+    }
+
+    .game-wrapper {
+      width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+      background: radial-gradient(ellipse at 50% 20%, #1a1f3a 0%, #0a0e1a 70%);
+    }
+
+    .orbitron { font-family: 'Orbitron', monospace; }
+
+    .click-btn {
+      width: 150px; height: 150px; border-radius: 50%; border: none; cursor: pointer;
+      background: radial-gradient(circle at 35% 35%, #ff9a5c, #ff6b35 50%, #cc4400);
+      box-shadow: 0 0 40px rgba(255,107,53,0.5), 0 0 80px rgba(255,107,53,0.2), inset 0 -4px 12px rgba(0,0,0,0.3);
+      transition: transform 0.08s, box-shadow 0.15s;
+      position: relative; z-index: 2;
+    }
+    .click-btn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 60px rgba(255,107,53,0.7), 0 0 100px rgba(255,107,53,0.3);
+    }
+    .click-btn:active { transform: scale(0.9); }
+
+    /* Aura glow states */
+    .click-btn.aura-common {
+      background: radial-gradient(circle at 35% 35%, #d0d0d0, #a0a0a0 50%, #707070);
+      box-shadow: 0 0 40px rgba(180,180,180,0.5), 0 0 80px rgba(180,180,180,0.2);
+    }
+    .click-btn.aura-rare {
+      background: radial-gradient(circle at 35% 35%, #90caf9, #42a5f5 50%, #1565c0);
+      box-shadow: 0 0 40px rgba(66,165,245,0.6), 0 0 80px rgba(66,165,245,0.3);
+    }
+    .click-btn.aura-epic {
+      background: radial-gradient(circle at 35% 35%, #ce93d8, #ab47bc 50%, #6a1b9a);
+      box-shadow: 0 0 50px rgba(171,71,188,0.6), 0 0 100px rgba(171,71,188,0.3);
+    }
+    .click-btn.aura-legendary {
+      background: radial-gradient(circle at 35% 35%, #fff176, #ffd700 50%, #f9a825);
+      box-shadow: 0 0 60px rgba(255,215,0,0.7), 0 0 120px rgba(255,215,0,0.4);
+    }
+    .click-btn.aura-mythic {
+      background: radial-gradient(circle at 35% 35%, #ff8a80, #ff1744 50%, #b71c1c);
+      box-shadow: 0 0 70px rgba(255,23,68,0.7), 0 0 140px rgba(255,23,68,0.4);
+    }
+
+    /* Orbiting particles */
+    .particle-container {
+      position: absolute; width: 210px; height: 210px; pointer-events: none; z-index: 1;
+    }
+    .orbit-particle {
+      position: absolute; width: 5px; height: 5px; border-radius: 50%;
+      background: #ff6b35; opacity: 0;
+      top: 50%; left: 50%; margin: -2.5px;
+      animation: orbitAnim 3s linear infinite;
+    }
+    @keyframes orbitAnim {
+      0% { opacity: 0; transform: rotate(var(--a)) translateX(100px) scale(0.4); }
+      15% { opacity: 0.9; }
+      85% { opacity: 0.6; }
+      100% { opacity: 0; transform: rotate(calc(var(--a) + 360deg)) translateX(100px) scale(0.2); }
+    }
+
+    /* Click float */
+    .click-float {
+      position: absolute; pointer-events: none; font-weight: 700; z-index: 10;
+      animation: floatUp 0.7s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-55px) scale(1.4); }
+    }
+
+    /* Spin overlay */
+    .spinner-overlay {
+      position: fixed; inset: 0; background: rgba(5,8,20,0.92); z-index: 100;
+      display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    .spinner-overlay.active { opacity: 1; pointer-events: all; }
+
+    .spin-wheel-wrap {
+      position: relative; width: 280px; height: 280px;
+    }
+    .spin-wheel {
+      width: 100%; height: 100%; border-radius: 50%; position: relative;
+      border: 3px solid rgba(255,255,255,0.15); overflow: hidden;
+      transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+    .spin-pointer {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%); z-index: 5;
+      width: 0; height: 0;
+      border-left: 12px solid transparent; border-right: 12px solid transparent;
+      border-top: 20px solid #ff6b35;
+      filter: drop-shadow(0 0 6px rgba(255,107,53,0.8));
+    }
+
+    .spin-segment {
+      position: absolute; width: 50%; height: 50%; transform-origin: 100% 100%;
+      clip-path: polygon(0 0, 100% 0, 100% 100%);
+    }
+    .spin-segment-inner {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; text-align: center;
+      transform: rotate(22.5deg) translateX(-20px);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+
+    /* Rarity colors */
+    .rarity-common { color: #b0b0b0; }
+    .rarity-rare { color: #42a5f5; }
+    .rarity-epic { color: #ab47bc; }
+    .rarity-legendary { color: #ffd700; }
+    .rarity-mythic { color: #ff1744; }
+
+    .bg-common { background: #3a3a3a; }
+    .bg-rare { background: #1565c0; }
+    .bg-epic { background: #6a1b9a; }
+    .bg-legendary { background: #f9a825; }
+    .bg-mythic { background: #b71c1c; }
+    .bg-nothing { background: #1a1a2e; }
+
+    /* Inventory card */
+    .inv-card {
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      padding: 8px 10px; background: rgba(255,255,255,0.04);
+      display: flex; align-items: center; gap: 8px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .inv-card:hover { background: rgba(255,255,255,0.08); }
+
+    /* Result reveal */
+    .result-reveal {
+      animation: revealPop 0.5s ease-out;
+    }
+    @keyframes revealPop {
+      0% { transform: scale(0.3); opacity: 0; }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Tabs */
+    .tab-btn {
+      padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+      background: transparent; color: #8a8fb0; transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: rgba(255,107,53,0.15); color: #ff6b35;
+      border-color: rgba(255,107,53,0.4);
+    }
+
+    /* Upgrade btn */
+    .upgrade-btn {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid rgba(124,77,255,0.4);
+      background: rgba(124,77,255,0.15); color: #b388ff; transition: all 0.2s;
+    }
+    .upgrade-btn:hover:not(:disabled) { background: rgba(124,77,255,0.3); }
+    .upgrade-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+    /* Shimmer for legendary+ */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .shimmer-text {
+      background: linear-gradient(90deg, #ffd700, #fff8e1, #ffd700, #ffab00, #ffd700);
+      background-size: 200% 100%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: shimmer 3s linear infinite;
+    }
+
+    .mythic-text {
+      background: linear-gradient(90deg, #ff1744, #ff8a80, #ff1744, #d50000, #ff1744);
+      background-size: 200% 100%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: shimmer 2s linear infinite;
+    }
+
+    /* Notification toast */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+      background: rgba(20,26,46,0.95); border: 1px solid rgba(255,255,255,0.15);
+    }
+    .toast.show { opacity: 1; }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <div class="game-wrapper" id="gameWrapper">
+   <!-- Top bar -->
+   <header class="flex items-center justify-between px-4 py-3" style="background: rgba(10,14,26,0.8); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <h1 class="orbitron text-base font-bold tracking-wider" id="gameTitle" style="color: #ff6b35;">AURA CLICKER</h1>
+    <div class="flex items-center gap-3">
+     <div class="flex items-center gap-1.5 px-3 py-1 rounded-full" style="background: rgba(255,107,53,0.12); border: 1px solid rgba(255,107,53,0.25);">
+      <i data-lucide="zap" style="width:14px;height:14px;color:#ff6b35;"></i> <span class="orbitron text-sm font-bold" id="auraCount" style="color: #ff6b35;">0</span>
+     </div>
+     <div class="flex items-center gap-1.5 px-3 py-1 rounded-full" style="background: rgba(124,77,255,0.12); border: 1px solid rgba(124,77,255,0.25);">
+      <i data-lucide="rotate-cw" style="width:13px;height:13px;color:#7c4dff;"></i> <span class="text-xs font-semibold" id="spinCount" style="color: #b388ff;">0 spins</span>
+     </div>
+    </div>
+   </header><!-- Main area -->
+   <main class="flex flex-col items-center px-4 pt-6 pb-4" style="min-height: calc(100% - 52px);">
+    <!-- Click zone -->
+    <div class="relative flex items-center justify-center mb-4" style="width: 210px; height: 210px;">
+     <div class="particle-container" id="particleContainer"></div><button class="click-btn" id="clickBtn" aria-label="Click to earn aura"> <span class="orbitron text-lg font-black" id="clickLabel" style="color: rgba(255,255,255,0.95); text-shadow: 0 2px 8px rgba(0,0,0,0.4);">TAP</span> </button>
+     <div id="floatContainer" style="position:absolute;inset:0;pointer-events:none;z-index:10;"></div>
+    </div><!-- Stats row -->
+    <div class="flex gap-4 mb-4 text-center">
+     <div>
+      <div class="text-xs" style="color: #6a6f8a;">
+       Per Click
+      </div>
+      <div class="orbitron text-sm font-bold" id="perClickDisplay" style="color: #ff6b35;">
+       +1
+      </div>
+     </div>
+     <div>
+      <div class="text-xs" style="color: #6a6f8a;">
+       Per Sec
+      </div>
+      <div class="orbitron text-sm font-bold" id="perSecDisplay" style="color: #7c4dff;">
+       +0
+      </div>
+     </div>
+     <div>
+      <div class="text-xs" style="color: #6a6f8a;">
+       Multiplier
+      </div>
+      <div class="orbitron text-sm font-bold" id="multDisplay" style="color: #e8eaf6;">
+       x1
+      </div>
+     </div>
+    </div><!-- Spin button --> <button id="spinBtn" disabled class="mb-4 px-5 py-2 rounded-full orbitron text-xs font-bold tracking-wider" style="background: rgba(124,77,255,0.2); border: 1px solid rgba(124,77,255,0.4); color: #b388ff; cursor: pointer; transition: all 0.2s;"> 🎰 SPIN (100 Aura) </button> <!-- Tabs -->
+    <div class="flex gap-2 mb-3">
+     <button class="tab-btn active" data-tab="upgrades">Upgrades</button> <button class="tab-btn" data-tab="inventory">Inventory</button>
+    </div><!-- Tab panels -->
+    <div id="upgradesPanel" class="w-full max-w-sm flex flex-col gap-2 pb-6">
+     <!-- Upgrades generated by JS -->
+    </div>
+    <div id="inventoryPanel" class="w-full max-w-sm flex flex-col gap-2 pb-6" style="display:none;">
+     <div id="inventoryList" class="flex flex-col gap-2">
+      <div class="text-center text-sm py-6" style="color: #6a6f8a;">
+       No auras collected yet. Spin to win!
+      </div>
+     </div>
+    </div>
+   </main>
+  </div><!-- Spin overlay -->
+  <div class="spinner-overlay" id="spinOverlay">
+   <div class="spin-wheel-wrap">
+    <div class="spin-pointer"></div>
+    <div class="spin-wheel" id="spinWheel"></div>
+   </div>
+   <div id="spinResult" class="text-center" style="min-height: 60px;"></div><button id="spinCloseBtn" class="px-6 py-2 rounded-full orbitron text-xs font-bold" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e8eaf6; cursor: pointer; display: none;"> CLOSE </button>
+  </div><!-- Toast -->
+  <div class="toast" id="toast"></div>
+  <script>
+    // === GAME STATE ===
+    const state = {
+      aura: 0,
+      totalClicks: 0,
+      perClick: 1,
+      perSec: 0,
+      multiplier: 1,
+      spinsAvailable: 0,
+      inventory: {},
+      upgrades: {
+        doubleClick: { level: 0, cost: 25, label: 'Double Tap', desc: '+1 per click', icon: 'mouse-pointer-click', max: 20 },
+        autoClick: { level: 0, cost: 50, label: 'Auto Aura', desc: '+1 per second', icon: 'timer', max: 15 },
+        worker: { level: 0, cost: 250, label: 'Worker', desc: '+10 per second', icon: 'users', max: 10, unlocked: false },
+        factory: { level: 0, cost: 10000, label: 'Factory', desc: '+100 per click', icon: 'factory', max: 20, unlocked: false },
+        masterTapper: { level: 0, cost: 15000, label: 'Master Tapper', desc: '+30 per click', icon: 'zap', max: 15, unlocked: false },
+      }
+    };
+
+    let spinCostBase = 100;
+
+    // === AURAS ===
+    const AURAS = [
+      { name: 'Silver Wisp', rarity: 'common', chance: 30, emoji: '🌫️', bonus: 10 },
+      { name: 'Iron Pulse', rarity: 'common', chance: 25, emoji: '⚙️', bonus: 10 },
+      { name: 'Frost Shard', rarity: 'rare', chance: 15, emoji: '❄️', bonus: 30 },
+      { name: 'Ocean Tide', rarity: 'rare', chance: 10, emoji: '🌊', bonus: 30 },
+      { name: 'Void Echo', rarity: 'epic', chance: 8, emoji: '🔮', bonus: 80 },
+      { name: 'Storm Crown', rarity: 'epic', chance: 5, emoji: '⚡', bonus: 80 },
+      { name: 'Solar Flare', rarity: 'legendary', chance: 4, emoji: '☀️', bonus: 200 },
+      { name: 'Dragon Heart', rarity: 'legendary', chance: 2, emoji: '🐉', bonus: 200 },
+      { name: 'Celestial Nova', rarity: 'mythic', chance: 1, emoji: '✨', bonus: 500 },
+    ];
+
+    // Spin cost increases each time
+    function spinCost() {
+      return Math.round(spinCostBase);
+    }
+
+    // === DOM REFS ===
+    const $ = id => document.getElementById(id);
+    const auraCountEl = $('auraCount');
+    const spinCountEl = $('spinCount');
+    const perClickEl = $('perClickDisplay');
+    const perSecEl = $('perSecDisplay');
+    const multEl = $('multDisplay');
+    const clickBtn = $('clickBtn');
+    const floatContainer = $('floatContainer');
+    const spinBtn = $('spinBtn');
+    const spinOverlay = $('spinOverlay');
+    const spinWheel = $('spinWheel');
+    const spinResult = $('spinResult');
+    const spinCloseBtn = $('spinCloseBtn');
+    const upgradesPanel = $('upgradesPanel');
+    const inventoryPanel = $('inventoryPanel');
+    const inventoryList = $('inventoryList');
+    const toastEl = $('toast');
+
+    // === PARTICLES ===
+    function createParticles() {
+      const c = $('particleContainer');
+      for (let i = 0; i < 8; i++) {
+        const p = document.createElement('div');
+        p.className = 'orbit-particle';
+        p.style.setProperty('--a', (i * 45) + 'deg');
+        p.style.animationDelay = (i * 0.375) + 's';
+        c.appendChild(p);
+      }
+    }
+
+    // === UPDATE UI ===
+    function updateUI() {
+      auraCountEl.textContent = formatNum(Math.floor(state.aura));
+      spinCountEl.textContent = spinCost() + ' to spin';
+      perClickEl.textContent = '+' + formatNum(state.perClick);
+      perSecEl.textContent = '+' + formatNum(state.perSec);
+      multEl.textContent = 'x' + state.multiplier.toFixed(1);
+      spinBtn.disabled = state.aura < spinCost();
+      spinBtn.textContent = '🎰 SPIN (' + spinCost() + ' Aura)';
+      renderUpgrades();
+    }
+
+    function formatNum(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    // === CLICK ===
+    clickBtn.addEventListener('click', (e) => {
+      const gain = state.perClick * state.multiplier;
+      state.aura += gain;
+      state.totalClicks++;
+      spawnFloat(e, gain);
+      updateUI();
+    });
+
+    function spawnFloat(e, amount) {
+      const el = document.createElement('div');
+      el.className = 'click-float orbitron';
+      el.textContent = '+' + formatNum(Math.round(amount));
+      el.style.color = '#ff6b35';
+      el.style.fontSize = '16px';
+      const rect = floatContainer.getBoundingClientRect();
+      el.style.left = (e.clientX - rect.left - 15) + 'px';
+      el.style.top = (e.clientY - rect.top - 10) + 'px';
+      floatContainer.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }
+
+    // === AUTO CLICKER ===
+    setInterval(() => {
+      let autoGain = state.perSec * state.multiplier;
+      
+      // Add aura auto-clicks from inventory
+      Object.entries(state.inventory).forEach(([name, data]) => {
+        const aura = AURAS.find(a => a.name === name);
+        if (aura) {
+          autoGain += aura.bonus * data.count;
+        }
+      });
+      
+      if (autoGain > 0) {
+        state.aura += autoGain;
+        updateUI();
+      }
+    }, 1000);
+
+    // === UPGRADES ===
+    function renderUpgrades() {
+      const keys = Object.keys(state.upgrades);
+      if (upgradesPanel.children.length !== keys.length) {
+        upgradesPanel.innerHTML = '';
+        keys.forEach(key => {
+          const div = document.createElement('div');
+          div.id = 'upgrade-' + key;
+          div.className = 'inv-card';
+          div.style.cursor = 'pointer';
+          div.addEventListener('click', () => buyUpgrade(key));
+          upgradesPanel.appendChild(div);
+        });
+      }
+      keys.forEach(key => {
+        const u = state.upgrades[key];
+        
+        // Skip if not unlocked
+        if (u.unlocked === false) return;
+        
+        const canBuy = state.aura >= u.cost && u.level < u.max;
+        const maxed = u.level >= u.max;
+        const div = $('upgrade-' + key);
+        div.innerHTML = `
+          <div class="flex items-center justify-center rounded-lg" style="width:36px;height:36px;background:rgba(124,77,255,0.15);flex-shrink:0;">
+            <i data-lucide="${u.icon}" style="width:18px;height:18px;color:#7c4dff;"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold" style="color:#e8eaf6;">${u.label} <span style="color:#6a6f8a;font-size:11px;">Lv.${u.level}/${u.max}</span></div>
+            <div class="text-xs" style="color:#8a8fb0;">${u.desc}</div>
+          </div>
+          <div class="text-right flex-shrink-0">
+            ${maxed
+              ? '<span class="text-xs font-bold" style="color:#4caf50;">MAX</span>'
+              : `<span class="orbitron text-xs font-bold" style="color:${canBuy ? '#ff6b35' : '#4a4f6a'};">${formatNum(u.cost)}</span>`
+            }
+          </div>
+        `;
+        div.style.opacity = (canBuy || maxed) ? '1' : '0.5';
+        div.style.pointerEvents = maxed ? 'none' : 'auto';
+        lucide.createIcons({ nodes: [div] });
+      });
+    }
+
+    function buyUpgrade(key) {
+      const u = state.upgrades[key];
+      if (state.aura < u.cost || u.level >= u.max) return;
+      state.aura -= u.cost;
+      u.level++;
+      u.cost = Math.floor(u.cost * 1.6);
+      recalcStats();
+      updateUI();
+      showToast(u.label + ' upgraded to Lv.' + u.level + '!');
+    }
+
+    function recalcStats() {
+      state.perClick = 1 + state.upgrades.doubleClick.level + (state.upgrades.factory.level * 100) + (state.upgrades.masterTapper.level * 30);
+      
+      // Add aura bonuses from inventory
+      Object.entries(state.inventory).forEach(([name, data]) => {
+        const aura = AURAS.find(a => a.name === name);
+        if (aura) {
+          state.perClick += aura.bonus * data.count;
+        }
+      });
+      
+      state.perSec = state.upgrades.autoClick.level + (state.upgrades.worker.level * 10);
+      state.multiplier = 1;
+      
+      // Unlock Worker after 5 Auto Clicker levels
+      if (state.upgrades.autoClick.level >= 5) {
+        state.upgrades.worker.unlocked = true;
+      }
+      
+      // Unlock Factory after 5 Workers
+      if (state.upgrades.worker.level >= 5) {
+        state.upgrades.factory.unlocked = true;
+      }
+      
+      // Unlock Master Tapper after 3 Factory levels
+      if (state.upgrades.factory.level >= 3) {
+        state.upgrades.masterTapper.unlocked = true;
+      }
+    }
+
+    // === TABS ===
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        upgradesPanel.style.display = tab === 'upgrades' ? 'flex' : 'none';
+        inventoryPanel.style.display = tab === 'inventory' ? 'block' : 'none';
+      });
+    });
+
+    // === SPINNER ===
+    function buildWheel() {
+      spinWheel.innerHTML = '';
+      const segCount = AURAS.length + 1; // +1 for "nothing"
+      const segAngle = 360 / segCount;
+      const items = [...AURAS, { name: 'Nothing', rarity: 'nothing', emoji: '💨' }];
+
+      items.forEach((item, i) => {
+        const seg = document.createElement('div');
+        seg.className = 'spin-segment';
+        const rotation = i * segAngle - 90;
+        seg.style.transform = `rotate(${rotation}deg) skewY(${-(90 - segAngle)}deg)`;
+
+        let bgClass = 'bg-nothing';
+        if (item.rarity === 'common') bgClass = 'bg-common';
+        else if (item.rarity === 'rare') bgClass = 'bg-rare';
+        else if (item.rarity === 'epic') bgClass = 'bg-epic';
+        else if (item.rarity === 'legendary') bgClass = 'bg-legendary';
+        else if (item.rarity === 'mythic') bgClass = 'bg-mythic';
+        seg.classList.add(bgClass);
+
+        const inner = document.createElement('div');
+        inner.className = 'spin-segment-inner';
+        inner.style.transform = `skewY(${90 - segAngle}deg) rotate(${segAngle / 2}deg)`;
+        inner.textContent = item.emoji;
+        inner.style.fontSize = '18px';
+        seg.appendChild(inner);
+        spinWheel.appendChild(seg);
+      });
+    }
+
+    function getSpinResult() {
+      const roll = Math.random() * 100;
+      let cumulative = 0;
+      for (const aura of AURAS) {
+        cumulative += aura.chance;
+        if (roll <= cumulative) return aura;
+      }
+      return null; // nothing
+    }
+
+    let spinning = false;
+    spinBtn.addEventListener('click', () => {
+      if (state.aura < spinCost() || spinning) return;
+      state.aura -= spinCost();
+      spinning = true;
+      updateUI();
+
+      const result = getSpinResult();
+      const segCount = AURAS.length + 1;
+      const segAngle = 360 / segCount;
+
+      let targetIdx = result ? AURAS.indexOf(result) : AURAS.length;
+      const targetAngle = 360 * 6 + (targetIdx * segAngle) + segAngle / 2;
+
+      spinWheel.style.transition = 'none';
+      spinWheel.style.transform = 'rotate(0deg)';
+      spinResult.innerHTML = '';
+      spinCloseBtn.style.display = 'none';
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          spinOverlay.classList.add('active');
+          spinWheel.style.transition = 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+          spinWheel.style.transform = `rotate(-${targetAngle}deg)`;
+
+          setTimeout(() => {
+            spinning = false;
+            showSpinResult(result);
+          }, 4200);
+        });
+      });
+    });
+
+    function showSpinResult(aura) {
+      // Clear current inventory (get rid of old aura)
+      state.inventory = {};
+      
+      if (aura) {
+        // Add only the new spun aura
+        state.inventory[aura.name] = { count: 1, rarity: aura.rarity, emoji: aura.emoji };
+        
+        // Increase spin cost for next spin
+        spinCostBase = spinCostBase * 1.25;
+
+        const rarityClass = 'rarity-' + aura.rarity;
+        const isLeg = aura.rarity === 'legendary';
+        const isMythic = aura.rarity === 'mythic';
+        const nameClass = isMythic ? 'mythic-text' : isLeg ? 'shimmer-text' : rarityClass;
+
+        spinResult.innerHTML = `
+          <div class="result-reveal text-center">
+            <div style="font-size: 48px; margin-bottom: 8px;">${aura.emoji}</div>
+            <div class="orbitron text-lg font-bold ${nameClass}">${aura.name}</div>
+            <div class="text-xs ${rarityClass}" style="text-transform: uppercase; letter-spacing: 2px; margin-top: 4px;">${aura.rarity}</div>
+            <div class="text-xs mt-2" style="color: #8a8fb0;">+${aura.bonus}/click</div>
+          </div>
+        `;
+
+        // Glow the main button temporarily
+        clickBtn.className = 'click-btn aura-' + aura.rarity;
+        setTimeout(() => clickBtn.className = 'click-btn', 3000);
+      } else {
+        spinResult.innerHTML = `
+          <div class="result-reveal text-center">
+            <div style="font-size: 48px; margin-bottom: 8px;">💨</div>
+            <div class="orbitron text-base" style="color: #6a6f8a;">Nothing this time...</div>
+            <div class="text-xs mt-1" style="color: #4a4f6a;">Better luck next spin!</div>
+          </div>
+        `;
+        // Still increase cost on nothing
+        spinCostBase = spinCostBase * 1.25;
+      }
+
+      spinCloseBtn.style.display = 'inline-block';
+      updateUI();
+      renderInventory();
+    }
+
+    spinCloseBtn.addEventListener('click', () => {
+      spinOverlay.classList.remove('active');
+    });
+
+    // === INVENTORY ===
+    function renderInventory() {
+      const entries = Object.entries(state.inventory);
+      if (entries.length === 0) {
+        inventoryList.innerHTML = '<div class="text-center text-sm py-6" style="color: #6a6f8a;">No auras collected yet. Spin to win!</div>';
+        return;
+      }
+
+      // Sort by rarity
+      const rarityOrder = { mythic: 0, legendary: 1, epic: 2, rare: 3, common: 4 };
+      entries.sort((a, b) => rarityOrder[a[1].rarity] - rarityOrder[b[1].rarity]);
+
+      // Update or create
+      const existingIds = new Set([...inventoryList.children].map(el => el.dataset.name));
+      const currentNames = new Set(entries.map(([name]) => name));
+
+      // Remove old
+      [...inventoryList.children].forEach(el => {
+        if (!currentNames.has(el.dataset.name)) el.remove();
+      });
+
+      entries.forEach(([name, data]) => {
+        let el = inventoryList.querySelector(`[data-name="${name}"]`);
+        const rarityClass = 'rarity-' + data.rarity;
+        const isMythic = data.rarity === 'mythic';
+        const isLeg = data.rarity === 'legendary';
+        const nameClass = isMythic ? 'mythic-text' : isLeg ? 'shimmer-text' : rarityClass;
+        const aura = AURAS.find(a => a.name === name);
+        const bonusText = aura ? `+${(aura.bonus * data.count * 0.1).toFixed(1)}/click` : '';
+
+        const html = `
+          <span style="font-size: 22px; flex-shrink: 0;">${data.emoji}</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold ${nameClass}">${name}</div>
+            <div class="text-xs" style="color: #6a6f8a;">${data.rarity.toUpperCase()} • ${bonusText}</div>
+          </div>
+          <div class="orbitron text-sm font-bold" style="color: #e8eaf6;">x${data.count}</div>
+        `;
+
+        if (el) {
+          el.innerHTML = html;
+        } else {
+          el = document.createElement('div');
+          el.className = 'inv-card';
+          el.dataset.name = name;
+          el.innerHTML = html;
+          inventoryList.appendChild(el);
+        }
+      });
+    }
+
+    // === TOAST ===
+    let toastTimer;
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+    }
+
+    // === ELEMENT SDK ===
+    const defaultConfig = {
+      game_title: 'AURA CLICKER',
+      click_label: 'TAP',
+      background_color: '#0a0e1a',
+      surface_color: '#141a2e',
+      text_color: '#e8eaf6',
+      primary_color: '#ff6b35',
+      secondary_color: '#7c4dff',
+      font_family: 'Orbitron',
+      font_size: 14
+    };
+
+    function applyConfig(config) {
+      const bg = config.background_color || defaultConfig.background_color;
+      const surface = config.surface_color || defaultConfig.surface_color;
+      const text = config.text_color || defaultConfig.text_color;
+      const primary = config.primary_color || defaultConfig.primary_color;
+      const secondary = config.secondary_color || defaultConfig.secondary_color;
+      const font = config.font_family || defaultConfig.font_family;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      const title = config.game_title || defaultConfig.game_title;
+      const clickLabel = config.click_label || defaultConfig.click_label;
+
+      // Title & label
+      $('gameTitle').textContent = title;
+      $('clickLabel').textContent = clickLabel;
+
+      // Background
+      $('gameWrapper').style.background = `radial-gradient(ellipse at 50% 20%, ${lighten(bg, 15)} 0%, ${bg} 70%)`;
+
+      // Header
+      const header = document.querySelector('header');
+      header.style.background = `rgba(${hexToRgb(bg)}, 0.85)`;
+
+      // Primary color on title, aura count, click btn glow
+      $('gameTitle').style.color = primary;
+      auraCountEl.style.color = primary;
+      auraCountEl.parentElement.style.background = `rgba(${hexToRgb(primary)}, 0.12)`;
+      auraCountEl.parentElement.style.borderColor = `rgba(${hexToRgb(primary)}, 0.25)`;
+
+      // Secondary
+      spinCountEl.style.color = lighten(secondary, 30);
+      spinCountEl.parentElement.style.background = `rgba(${hexToRgb(secondary)}, 0.12)`;
+      spinCountEl.parentElement.style.borderColor = `rgba(${hexToRgb(secondary)}, 0.25)`;
+
+      // Spin button
+      spinBtn.style.background = `rgba(${hexToRgb(secondary)}, 0.2)`;
+      spinBtn.style.borderColor = `rgba(${hexToRgb(secondary)}, 0.4)`;
+      spinBtn.style.color = lighten(secondary, 30);
+
+      // Per-click display
+      perClickEl.style.color = primary;
+      perSecEl.style.color = secondary;
+      multEl.style.color = text;
+
+      // Font
+      const fontStack = `${font}, 'Exo 2', sans-serif`;
+      document.querySelectorAll('.orbitron').forEach(el => {
+        el.style.fontFamily = fontStack;
+      });
+
+      // Font size
+      $('gameTitle').style.fontSize = `${fontSize * 1.15}px`;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.style.fontSize = `${fontSize * 0.93}px`;
+      });
+
+      // Text colors
+      document.querySelectorAll('.text-xs, .text-sm').forEach(el => {
+        // Don't override rarity-colored elements
+        if (!el.className.includes('rarity-') && !el.className.includes('shimmer') && !el.className.includes('mythic')) {
+          // Keep subtle elements
+        }
+      });
+    }
+
+    function hexToRgb(hex) {
+      hex = hex.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return `${r},${g},${b}`;
+    }
+
+    function lighten(hex, pct) {
+      hex = hex.replace('#', '');
+      let r = parseInt(hex.substring(0, 2), 16);
+      let g = parseInt(hex.substring(2, 4), 16);
+      let b = parseInt(hex.substring(4, 6), 16);
+      r = Math.min(255, r + Math.floor((255 - r) * pct / 100));
+      g = Math.min(255, g + Math.floor((255 - g) * pct / 100));
+      b = Math.min(255, b + Math.floor((255 - b) * pct / 100));
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+
+    // Init
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange: async (config) => {
+          applyConfig(config);
+        },
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            { get: () => config.background_color || defaultConfig.background_color, set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+            { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+            { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+            { get: () => config.primary_color || defaultConfig.primary_color, set: (v) => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+            { get: () => config.secondary_color || defaultConfig.secondary_color, set: (v) => { config.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); } },
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+          },
+          fontSizeable: {
+            get: () => config.font_size || defaultConfig.font_size,
+            set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+          }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['game_title', config.game_title || defaultConfig.game_title],
+          ['click_label', config.click_label || defaultConfig.click_label],
+        ])
+      });
+    }
+
+    // Bootstrap
+    createParticles();
+    buildWheel();
+    updateUI();
+    lucide.createIcons();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dbe8ff6369b2caf',t:'MTc3MzQ0MTg1Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
