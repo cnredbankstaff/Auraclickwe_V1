@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Clicker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Exo+2:wght@400;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+html, body { height: 100%; margin: 0; overflow: hidden; }
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #0a0e1a;
+  --surface: #141a2e;
+  --text: #e8eaf6;
+  --primary: #ff6b35;
+  --secondary: #7c4dff;
+}
+
+body { font-family: 'Exo 2', sans-serif; background: var(--bg); color: var(--text); }
+
+.game-wrapper {
+  width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #1a1f3a 0%, #0a0e1a 70%);
+}
+
+.orbitron { font-family: 'Orbitron', monospace; }
+
+/* Main click button */
+.click-btn {
+  width: 160px; height: 160px; border-radius: 50%; border: none; cursor: pointer;
+  background: radial-gradient(circle at 35% 35%, #ff9a5c, #ff6b35 50%, #cc4400);
+  box-shadow: 0 0 40px rgba(255,107,53,0.5), 0 0 80px rgba(255,107,53,0.2), inset 0 -4px 12px rgba(0,0,0,0.3);
+  transition: transform 0.08s, box-shadow 0.08s;
+  position: relative; z-index: 2;
+}
+.click-btn:hover { transform: scale(1.05); box-shadow: 0 0 60px rgba(255,107,53,0.7), 0 0 100px rgba(255,107,53,0.3); }
+.click-btn:active { transform: scale(0.92); }
+.click-btn.aura-common { box-shadow: 0 0 40px rgba(180,180,180,0.5), 0 0 80px rgba(180,180,180,0.2); }
+.click-btn.aura-rare { box-shadow: 0 0 40px rgba(66,165,245,0.6), 0 0 80px rgba(66,165,245,0.3); }
+.click-btn.aura-epic { box-shadow: 0 0 40px rgba(171,71,188,0.6), 0 0 100px rgba(171,71,188,0.3); }
+.click-btn.aura-legendary { box-shadow: 0 0 60px rgba(255,215,0,0.7), 0 0 120px rgba(255,215,0,0.4); }
+
+/* Particles */
+.particle-ring { position: absolute; width: 220px; height: 220px; pointer-events: none; z-index: 1; }
+.particle {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary); opacity: 0;
+  animation: orbit 3s linear infinite;
+}
+@keyframes orbit {
+  0% { opacity: 0; transform: rotate(var(--angle)) translateX(110px) scale(0.5); }
+  20% { opacity: 1; }
+  80% { opacity: 0.8; }
+  100% { opacity: 0; transform: rotate(calc(var(--angle) + 360deg)) translateX(110px) scale(0.2); }
+}
+
+/* Click float text */
+.click-float {
+  position: absolute; pointer-events: none; font-weight: 700; z-index: 10;
+  animation: floatUp 0.8s ease-out forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
+}
+
+/* Spinner */
+.spinner-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.spinner-overlay.active { opacity: 1; pointer-events: all; }
+
+.spin-wheel {
+  width: 300px; height: 300px; border-radius: 50%; position: relative;
+  border: 4px solid rgba(255,255,255,0.2); overflow: hidden;
+  transition: transform 0s;
+}
+.spin-segment {
+  position: absolute; width: 50%; height: 50%; transform-origin: 100% 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; padding: 4px;
+}
+
+/* Rarity colors */
+.rarity-common { color: #b0b0b0; }
+.rarity-rare { color: #42a5f5; }
+.rarity-epic { color: #ab47bc; }
+.rarity-legendary { color: #ffd700; }
+.bg-rarity-common { background: rgba(180,180,180,0.15); border-color: #b0b0b0; }
+.bg-rarity-rare { background: rgba(66,165,245,0.15); border-color: #42a5f5; }
+.bg-rarity-epic { background: rgba(171,71,188,0.15); border-color: #ab47bc; }
+.bg-rarity-legendary { background: rgba(255,215,0,0.15); border-color: #ffd700; }
+
+/* Shop button */
+.shop-btn {
+  background: linear-gradient(135deg, var(--surface), #1e2642);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+  padding: 12px 16px; cursor: pointer; transition: all 0.2s;
+}
+.shop-btn:hover { border-color: var(--primary); transform: translateY(-2px); }
+.shop-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.spin-action-btn {
+  padding: 10px 24px; border-radius: 10px; font-weight: 700; cursor: pointer;
+  border: 2px solid; transition: all 0.2s; font-family: 'Orbitron', monospace;
+}
+.spin-action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Pet display */
+.pet-icon { font-size: 36px; line-height: 1; }
+
+/* Result card */
+.result-card {
+  text-align: center; padding: 24px; border-radius: 16px;
+  background: var(--surface); border: 2px solid; max-width: 320px;
+}
+
+/* Pulse for legendary */
+@keyframes legendaryPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+  50% { box-shadow: 0 0 50px rgba(255,215,0,0.8); }
+}
+.legendary-pulse { animation: legendaryPulse 1.5s ease-in-out infinite; }
+
+.scroll-container { height: 100%; overflow-y: auto; overflow-x: hidden; }
+</style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="scroll-container" id="scrollContainer">
+   <main class="game-wrapper" style="min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 16px; width: 100%;"><!-- Currency Display -->
+    <header class="w-full max-w-lg text-center pt-2 pb-2">
+     <h1 class="orbitron text-lg font-bold mb-1" id="gameTitle" style="color: var(--primary);">AURA CLICKER</h1>
+     <div class="orbitron text-4xl font-black" id="currencyDisplay" style="color: var(--text); text-shadow: 0 0 20px rgba(255,107,53,0.5);">
+      0
+     </div>
+     <div class="text-xs opacity-60 mt-1">
+      Click Currency
+     </div>
+     <div class="text-xs opacity-40 mt-1" id="cpsDisplay">
+      +0/sec
+     </div>
+    </header><!-- Active Aura & Pet Display -->
+    <div class="flex items-center justify-center gap-4 mb-3 flex-wrap">
+     <div id="activeAuraBox" class="hidden px-3 py-1.5 rounded-lg border text-sm font-bold" style="background: var(--surface);"><span id="activeAuraName"></span>
+      <div class="text-xs opacity-60 mt-0.5" id="activeAuraDesc"></div>
+     </div>
+     <div id="activePetBox" class="hidden px-3 py-1.5 rounded-lg border text-sm font-bold flex items-center gap-2" style="background: var(--surface);"><span class="pet-icon" id="activePetIcon"></span>
+      <div>
+       <div id="activePetName"></div>
+       <div class="text-xs opacity-60" id="activePetRarity"></div>
+      </div>
+     </div>
+    </div><!-- Main Button Area -->
+    <div class="relative flex items-center justify-center my-4" style="width: 220px; height: 220px;">
+     <div class="particle-ring" id="particleRing"></div><button class="click-btn" id="clickBtn" aria-label="Click to earn currency"> <span class="orbitron text-white text-xl font-black" style="text-shadow: 0 2px 4px rgba(0,0,0,0.4);">CLICK</span> </button>
+     <div id="floatContainer" style="position:absolute; inset:0; pointer-events:none;"></div>
+    </div><!-- Aura Buff Info -->
+    <div class="text-xs text-center mb-3 opacity-70" id="buffInfo">
+     No aura active
+    </div><!-- Spin Buttons -->
+    <div class="flex gap-3 mb-4 flex-wrap justify-center"><button class="spin-action-btn" id="spinAuraBtn" disabled style="border-color: var(--secondary); color: var(--secondary); background: rgba(124,77,255,0.1);"> 🌀 Spin Aura (10) </button> <button class="spin-action-btn" id="spinPetBtn" disabled style="border-color: #e91e63; color: #e91e63; background: rgba(233,30,99,0.1);"> 🐾 Spin Pet (10) </button>
+    </div><!-- Auto Clicker Shop -->
+    <section class="w-full max-w-sm mb-4">
+     <h2 class="orbitron text-sm font-bold mb-2 text-center" style="color: var(--secondary);">SHOP</h2><button class="shop-btn w-full flex items-center justify-between" id="autoClickerBtn" disabled>
+      <div class="flex items-center gap-3">
+       <div style="font-size:24px;">
+        ⚙️
+       </div>
+       <div class="text-left">
+        <div class="font-bold text-sm">
+         Auto Clicker
+        </div>
+        <div class="text-xs opacity-60">
+         1 click/sec (affected by aura)
+        </div>
+       </div>
+      </div>
+      <div class="text-right">
+       <div class="orbitron text-sm font-bold" id="autoPrice" style="color: var(--primary);">
+        25
+       </div>
+       <div class="text-xs opacity-50">
+        Owned: <span id="autoOwned">0</span>
+       </div>
+      </div></button>
+     <div class="text-xs text-center mt-1 opacity-50" id="autoSpeedInfo">
+      Auto speed: 1.00s/click
+     </div>
+    </section><!-- Inventory Quick View -->
+    <section class="w-full max-w-sm mb-6">
+     <h2 class="orbitron text-sm font-bold mb-2 text-center" style="color: var(--primary);">COLLECTION</h2>
+     <div class="grid grid-cols-2 gap-2" id="collectionGrid"></div>
+    </section>
+   </main>
+  </div><!-- Spinner Overlay -->
+  <div class="spinner-overlay" id="spinnerOverlay">
+   <div id="spinnerContent" class="flex flex-col items-center gap-6"></div>
+  </div>
+  <script>
+// ===== GAME STATE =====
+const state = {
+  currency: 0,
+  clickValue: 1,
+  aura: null,
+  pet: null,
+  autoClickers: 0,
+  autoPrice: 25,
+  auraSpinCount: 0,
+  petSpinCount: 0,
+  clickCount: 0,  // for Pebble Aura
+  pebbleAccum: 0,
+  autoInterval: null,
+  particles: [],
+  collectedAuras: new Set(),
+  collectedPets: new Set(),
+};
+
+// ===== AURA DATA =====
+const AURAS = [
+  { id: 'spark', name: 'Spark Aura', rarity: 'common', chance: 0.295, desc: '10% faster clicks, slows auto', speedBonus: 0.1, autoSlow: 1.3, clickBonus: 0, emoji: '⚡' },
+  { id: 'pebble', name: 'Pebble Aura', rarity: 'common', chance: 0.295, desc: '+1 per 5 clicks', speedBonus: 0, autoSlow: 1, clickBonus: 0, special: 'pebble', emoji: '🪨' },
+  { id: 'storm', name: 'Storm Aura', rarity: 'rare', chance: 0.125, desc: '25% faster clicks, slight auto slow', speedBonus: 0.25, autoSlow: 1.5, clickBonus: 0, emoji: '🌩️' },
+  { id: 'golden', name: 'Golden Touch', rarity: 'rare', chance: 0.125, desc: '+2 per click', speedBonus: 0, autoSlow: 1, clickBonus: 2, emoji: '✨' },
+  { id: 'phoenix', name: 'Phoenix Aura', rarity: 'epic', chance: 0.07, desc: '50% faster clicks, slows auto', speedBonus: 0.5, autoSlow: 2, clickBonus: 0, emoji: '🔥' },
+  { id: 'crystal', name: 'Crystal Aura', rarity: 'epic', chance: 0.07, desc: '+4 per click', speedBonus: 0, autoSlow: 1, clickBonus: 4, emoji: '💎' },
+  { id: 'celestial', name: 'Celestial Aura', rarity: 'legendary', chance: 0.01, desc: 'Double click currency', speedBonus: 0, autoSlow: 1, clickBonus: 0, special: 'double', emoji: '🌟' },
+  { id: 'timebreaker', name: 'Timebreaker', rarity: 'legendary', chance: 0.01, desc: '75% faster + bonus clicks', speedBonus: 0.75, autoSlow: 2.5, clickBonus: 0, special: 'timebreaker', emoji: '⏳' },
+];
+
+// ===== PET DATA =====
+const PETS = [
+  { id: 'dustbunny', name: 'Dust Bunny', rarity: 'common', chance: 0.295, emoji: '🐰', desc: 'A fluffy gray companion' },
+  { id: 'stonefrog', name: 'Stone Frog', rarity: 'common', chance: 0.295, emoji: '🐸', desc: 'Sits patiently by your side' },
+  { id: 'stormhawk', name: 'Storm Hawk', rarity: 'rare', chance: 0.125, emoji: '🦅', desc: 'Crackles with static' },
+  { id: 'crystalfish', name: 'Crystal Fish', rarity: 'rare', chance: 0.125, emoji: '🐟', desc: 'Floats in a bubble' },
+  { id: 'shadowwolf', name: 'Shadow Wolf', rarity: 'epic', chance: 0.07, emoji: '🐺', desc: 'Phases in and out' },
+  { id: 'prismdragon', name: 'Prism Dragon', rarity: 'epic', chance: 0.07, emoji: '🐉', desc: 'Refracts rainbow light' },
+  { id: 'cosmicowl', name: 'Cosmic Owl', rarity: 'legendary', chance: 0.01, emoji: '🦉', desc: 'Eyes glow with starlight' },
+  { id: 'voidcat', name: 'Void Cat', rarity: 'legendary', chance: 0.01, emoji: '🐈‍⬛', desc: 'Distorts space around it' },
+];
+
+const RARITY_COLORS = { common: '#b0b0b0', rare: '#42a5f5', epic: '#ab47bc', legendary: '#ffd700' };
+
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const currencyEl = $('currencyDisplay');
+const clickBtn = $('clickBtn');
+const spinAuraBtn = $('spinAuraBtn');
+const spinPetBtn = $('spinPetBtn');
+const autoClickerBtn = $('autoClickerBtn');
+const floatContainer = $('floatContainer');
+const spinnerOverlay = $('spinnerOverlay');
+const spinnerContent = $('spinnerContent');
+
+// ===== CONFIG =====
+const defaultConfig = {
+  game_title: 'AURA CLICKER',
+  background_color: '#0a0e1a',
+  surface_color: '#141a2e',
+  text_color: '#e8eaf6',
+  primary_color: '#ff6b35',
+  secondary_color: '#7c4dff',
+  font_family: 'Exo 2',
+  font_size: 16,
+};
+
+function applyConfig(config) {
+  const c = { ...defaultConfig, ...config };
+  document.documentElement.style.setProperty('--bg', c.background_color);
+  document.documentElement.style.setProperty('--surface', c.surface_color);
+  document.documentElement.style.setProperty('--text', c.text_color);
+  document.documentElement.style.setProperty('--primary', c.primary_color);
+  document.documentElement.style.setProperty('--secondary', c.secondary_color);
+
+  const titleEl = $('gameTitle');
+  if (titleEl) {
+    titleEl.textContent = c.game_title || defaultConfig.game_title;
+    titleEl.style.color = c.primary_color;
+  }
+
+  document.body.style.fontFamily = `${c.font_family}, 'Exo 2', sans-serif`;
+  document.body.style.color = c.text_color;
+
+  const wrapper = document.querySelector('.game-wrapper');
+  if (wrapper) wrapper.style.background = `radial-gradient(ellipse at 50% 30%, ${c.surface_color} 0%, ${c.background_color} 70%)`;
+
+  // Apply font size scaling
+  const base = c.font_size || 16;
+  const titles = document.querySelectorAll('.orbitron');
+  titles.forEach(t => {
+    if (t.classList.contains('text-4xl')) t.style.fontSize = `${base * 2.2}px`;
+    else if (t.classList.contains('text-lg')) t.style.fontSize = `${base * 1.15}px`;
+    else if (t.classList.contains('text-sm')) t.style.fontSize = `${base * 0.85}px`;
+  });
+
+  // Update spin button colors
+  spinAuraBtn.style.borderColor = c.secondary_color;
+  spinAuraBtn.style.color = c.secondary_color;
+
+  const shopTitle = document.querySelector('section h2');
+  if (shopTitle) shopTitle.style.color = c.secondary_color;
+
+  const collTitle = document.querySelectorAll('section h2')[1];
+  if (collTitle) collTitle.style.color = c.primary_color;
+
+  $('autoPrice').style.color = c.primary_color;
+}
+
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async (config) => applyConfig(config),
+  mapToCapabilities: (config) => ({
+    recolorables: [
+      { get: () => config.background_color || defaultConfig.background_color, set: v => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+      { get: () => config.surface_color || defaultConfig.surface_color, set: v => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+      { get: () => config.text_color || defaultConfig.text_color, set: v => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+      { get: () => config.primary_color || defaultConfig.primary_color, set: v => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+      { get: () => config.secondary_color || defaultConfig.secondary_color, set: v => { config.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); } },
+    ],
+    borderables: [],
+    fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: v => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+    fontSizeable: { get: () => config.font_size || defaultConfig.font_size, set: v => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } },
+  }),
+  mapToEditPanelValues: (config) => new Map([
+    ['game_title', config.game_title || defaultConfig.game_title],
+  ]),
+});
+
+// ===== PARTICLES =====
+function createParticles() {
+  const ring = $('particleRing');
+  ring.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (360 / 12) * i;
+    p.style.setProperty('--angle', `${angle}deg`);
+    p.style.animationDelay = `${(i / 12) * 3}s`;
+    p.style.left = '50%'; p.style.top = '50%';
+    p.style.marginLeft = '-3px'; p.style.marginTop = '-3px';
+    ring.appendChild(p);
+    state.particles.push(p);
+  }
+  updateParticleColors();
+}
+
+function updateParticleColors() {
+  const color = state.aura ? RARITY_COLORS[state.aura.rarity] : 'var(--primary)';
+  state.particles.forEach(p => p.style.background = color);
+}
+
+function updateButtonGlow() {
+  clickBtn.className = 'click-btn';
+  if (state.aura) clickBtn.classList.add(`aura-${state.aura.rarity}`);
+}
+
+// ===== CURRENCY =====
+function addCurrency(amount) {
+  state.currency += amount;
+  updateUI();
+}
+
+function spendCurrency(amount) {
+  if (state.currency >= amount) { state.currency -= amount; updateUI(); return true; }
+  return false;
+}
+
+function getClickValue() {
+  let val = 1;
+  if (state.aura) {
+    val += state.aura.clickBonus;
+    if (state.aura.special === 'double') val *= 2;
+  }
+  return Math.floor(val);
+}
+
+function getAutoInterval() {
+  let base = 1000; // 1s
+  if (state.aura && state.aura.autoSlow > 1) {
+    base *= state.aura.autoSlow;
+  }
+  return base;
+}
+
+// ===== CLICK HANDLER =====
+clickBtn.addEventListener('click', (e) => {
+  const val = getClickValue();
+  state.clickCount++;
+
+  // Pebble aura bonus
+  if (state.aura && state.aura.special === 'pebble') {
+    state.pebbleAccum++;
+    if (state.pebbleAccum >= 5) {
+      state.pebbleAccum = 0;
+      addCurrency(1);
+    }
+  }
+
+  // Timebreaker bonus clicks (20% chance)
+  let bonusVal = 0;
+  if (state.aura && state.aura.special === 'timebreaker' && Math.random() < 0.2) {
+    bonusVal = val;
+  }
+
+  addCurrency(val + bonusVal);
+  showFloatText(val + bonusVal, e);
+  clickBtn.style.transform = 'scale(0.92)';
+  setTimeout(() => clickBtn.style.transform = '', 80);
+});
+
+function showFloatText(val, e) {
+  const rect = floatContainer.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'click-float orbitron';
+  el.textContent = `+${val}`;
+  el.style.color = state.aura ? RARITY_COLORS[state.aura.rarity] : 'var(--primary)';
+  el.style.fontSize = val >= 4 ? '20px' : '16px';
+  const x = 60 + Math.random() * 100;
+  const y = 40 + Math.random() * 60;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  floatContainer.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+// ===== AUTO CLICKERS =====
+function startAutoClicker() {
+  if (state.autoInterval) clearInterval(state.autoInterval);
+  if (state.autoClickers <= 0) return;
+  const interval = getAutoInterval();
+  state.autoInterval = setInterval(() => {
+    const val = getClickValue();
+    for (let i = 0; i < state.autoClickers; i++) {
+      addCurrency(val);
+    }
+    // Quick visual pulse
+    clickBtn.style.transform = 'scale(0.96)';
+    setTimeout(() => clickBtn.style.transform = '', 60);
+  }, interval);
+  $('autoSpeedInfo').textContent = `Auto speed: ${(interval / 1000).toFixed(2)}s/click`;
+}
+
+autoClickerBtn.addEventListener('click', () => {
+  if (spendCurrency(state.autoPrice)) {
+    state.autoClickers++;
+    state.autoPrice = Math.floor(25 * Math.pow(1.35, state.autoClickers));
+    startAutoClicker();
+    updateUI();
+  }
+});
+
+// ===== SPIN SYSTEM =====
+function rollItem(items) {
+  const r = Math.random();
+  let cumulative = 0;
+  for (const item of items) {
+    cumulative += item.chance;
+    if (r <= cumulative) return item;
+  }
+  return items[0];
+}
+
+function openSpinner(type) {
+  const items = type === 'aura' ? AURAS : PETS;
+  const spinCount = type === 'aura' ? state.auraSpinCount : state.petSpinCount;
+  const result = rollItem(items);
+
+  spinnerOverlay.classList.add('active');
+
+  // Build wheel visual with strips
+  const segColors = {
+    common: '#3a3a4a', rare: '#1a3a5a', epic: '#3a1a4a', legendary: '#4a3a00'
+  };
+  const borderColors = {
+    common: '#888', rare: '#42a5f5', epic: '#ab47bc', legendary: '#ffd700'
+  };
+
+  // Create strip-style spinner
+  const totalItems = 30 + spinCount * 8; // More items = more spinning
+  const stripItems = [];
+  for (let i = 0; i < totalItems; i++) {
+    stripItems.push(items[Math.floor(Math.random() * items.length)]);
+  }
+  // Place result near end
+  const resultIdx = totalItems - 5;
+  stripItems[resultIdx] = result;
+
+  spinnerContent.innerHTML = `
+    <div class="orbitron text-lg font-bold" style="color: ${type === 'aura' ? 'var(--secondary)' : '#e91e63'}">
+      ${type === 'aura' ? '🌀 AURA SPINNER' : '🐾 PET SPINNER'}
+    </div>
+    <div style="width: 280px; height: 70px; overflow: hidden; position: relative; border-radius: 12px; border: 2px solid rgba(255,255,255,0.2);">
+      <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; background: var(--primary); z-index: 5; transform: translateX(-50%);"></div>
+      <div id="spinStrip" style="display: flex; position: absolute; top: 0; left: 0; transition: none;">
+        ${stripItems.map((item, i) => `
+          <div style="min-width: 70px; height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: ${segColors[item.rarity]}; border-right: 1px solid ${borderColors[item.rarity]}30;
+            ${i === resultIdx ? 'border: 2px solid ' + borderColors[item.rarity] + ';' : ''}">
+            <span style="font-size: 24px;">${item.emoji}</span>
+            <span style="font-size: 8px; color: ${RARITY_COLORS[item.rarity]}; font-weight: 700; margin-top: 2px;">${item.rarity.toUpperCase()}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div id="spinResult" style="opacity: 0; transition: opacity 0.5s;"></div>
+  `;
+
+  // Animate strip
+  const strip = document.getElementById('spinStrip');
+  const targetOffset = resultIdx * 70 - 105; // center the result
+  const baseDuration = 2 + spinCount * 0.3;
+  const duration = Math.min(baseDuration, 8);
+
+  requestAnimationFrame(() => {
+    strip.style.transition = `left ${duration}s cubic-bezier(0.15, 0.85, 0.35, 1)`;
+    strip.style.left = `-${targetOffset}px`;
+  });
+
+  setTimeout(() => {
+    // Show result
+    const resEl = document.getElementById('spinResult');
+    const rarityClass = `rarity-${result.rarity}`;
+    const bgClass = `bg-rarity-${result.rarity}`;
+    resEl.innerHTML = `
+      <div class="result-card ${bgClass} ${result.rarity === 'legendary' ? 'legendary-pulse' : ''}" style="border-color: ${RARITY_COLORS[result.rarity]};">
+        <div style="font-size: 48px; margin-bottom: 8px;">${result.emoji}</div>
+        <div class="orbitron text-lg font-black ${rarityClass}">${result.name}</div>
+        <div class="text-xs mt-1 ${rarityClass}" style="opacity: 0.8;">${result.rarity.toUpperCase()}</div>
+        <div class="text-sm mt-2 opacity-70">${result.desc}</div>
+        <button class="spin-action-btn mt-4" onclick="closeSpinner()" style="border-color: ${RARITY_COLORS[result.rarity]}; color: ${RARITY_COLORS[result.rarity]}; background: rgba(255,255,255,0.05);">
+          EQUIP
+        </button>
+      </div>
+    `;
+    resEl.style.opacity = '1';
+
+    // Apply result
+    if (type === 'aura') {
+      state.aura = result;
+      state.auraSpinCount++;
+      state.collectedAuras.add(result.id);
+      state.pebbleAccum = 0;
+      updateButtonGlow();
+      updateParticleColors();
+      startAutoClicker(); // recalc auto speed
+    } else {
+      state.pet = result;
+      state.petSpinCount++;
+      state.collectedPets.add(result.id);
+    }
+    updateUI();
+  }, duration * 1000 + 200);
+}
+
+window.closeSpinner = function() {
+  spinnerOverlay.classList.remove('active');
+};
+
+spinAuraBtn.addEventListener('click', () => {
+  if (spendCurrency(10)) openSpinner('aura');
+});
+spinPetBtn.addEventListener('click', () => {
+  if (spendCurrency(10)) openSpinner('pet');
+});
+
+// ===== UI UPDATE =====
+function updateUI() {
+  currencyEl.textContent = state.currency.toLocaleString();
+
+  // Buttons
+  spinAuraBtn.disabled = state.currency < 10;
+  spinPetBtn.disabled = state.currency < 10;
+  autoClickerBtn.disabled = state.currency < state.autoPrice;
+  $('autoPrice').textContent = state.autoPrice;
+  $('autoOwned').textContent = state.autoClickers;
+
+  // CPS
+  const interval = getAutoInterval();
+  const cps = state.autoClickers > 0 ? (state.autoClickers * getClickValue() / (interval / 1000)).toFixed(1) : '0';
+  $('cpsDisplay').textContent = `+${cps}/sec`;
+
+  // Active aura
+  const auraBox = $('activeAuraBox');
+  if (state.aura) {
+    auraBox.classList.remove('hidden');
+    auraBox.style.borderColor = RARITY_COLORS[state.aura.rarity];
+    $('activeAuraName').textContent = `${state.aura.emoji} ${state.aura.name}`;
+    $('activeAuraName').style.color = RARITY_COLORS[state.aura.rarity];
+    $('activeAuraDesc').textContent = state.aura.desc;
+
+    let buffText = '';
+    if (state.aura.clickBonus > 0) buffText += `+${state.aura.clickBonus}/click `;
+    if (state.aura.special === 'double') buffText += '2x clicks ';
+    if (state.aura.speedBonus > 0) buffText += `${Math.round(state.aura.speedBonus * 100)}% speed `;
+    if (state.aura.autoSlow > 1) buffText += `Auto: ${state.aura.autoSlow}x slower `;
+    if (state.aura.special === 'pebble') buffText += '+1 every 5 clicks ';
+    if (state.aura.special === 'timebreaker') buffText += '+20% bonus clicks ';
+    $('buffInfo').textContent = buffText || 'No active buffs';
+    $('buffInfo').style.color = RARITY_COLORS[state.aura.rarity];
+  } else {
+    auraBox.classList.add('hidden');
+    $('buffInfo').textContent = 'No aura active';
+    $('buffInfo').style.color = '';
+  }
+
+  // Active pet
+  const petBox = $('activePetBox');
+  if (state.pet) {
+    petBox.classList.remove('hidden');
+    petBox.style.borderColor = RARITY_COLORS[state.pet.rarity];
+    $('activePetIcon').textContent = state.pet.emoji;
+    $('activePetName').textContent = state.pet.name;
+    $('activePetName').style.color = RARITY_COLORS[state.pet.rarity];
+    $('activePetRarity').textContent = state.pet.rarity.charAt(0).toUpperCase() + state.pet.rarity.slice(1);
+    $('activePetRarity').style.color = RARITY_COLORS[state.pet.rarity];
+  } else {
+    petBox.classList.add('hidden');
+  }
+
+  // Collection
+  updateCollection();
+}
+
+function updateCollection() {
+  const grid = $('collectionGrid');
+  grid.innerHTML = '';
+  const allItems = [...AURAS.map(a => ({...a, type: 'aura'})), ...PETS.map(p => ({...p, type: 'pet'}))];
+
+  allItems.forEach(item => {
+    const collected = item.type === 'aura' ? state.collectedAuras.has(item.id) : state.collectedPets.has(item.id);
+    const div = document.createElement('div');
+    div.style.cssText = `
+      padding: 8px; border-radius: 8px; text-align: center; font-size: 12px;
+      background: ${collected ? `${RARITY_COLORS[item.rarity]}15` : 'rgba(255,255,255,0.03)'};
+      border: 1px solid ${collected ? RARITY_COLORS[item.rarity] + '50' : 'rgba(255,255,255,0.05)'};
+      opacity: ${collected ? '1' : '0.35'};
+    `;
+    div.innerHTML = `
+      <div style="font-size: 20px;">${collected ? item.emoji : '❓'}</div>
+      <div style="font-size: 10px; color: ${RARITY_COLORS[item.rarity]}; font-weight: 700; margin-top: 2px;">
+        ${collected ? item.name : '???'}
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+// ===== INIT =====
+createParticles();
+updateUI();
+lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dbe5c9a16ea0f6d',t:'MTc3MzQzOTc1My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
